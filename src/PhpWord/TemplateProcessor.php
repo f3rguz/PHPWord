@@ -393,6 +393,17 @@ class TemplateProcessor
             $this->tempDocumentMainPart,
             $matches
         );
+        
+        $start = strpos($this->tempDocumentMainPart, '${'.$blockname.'}');
+        $end = strpos($this->tempDocumentMainPart, '${/'.$blockname.'}');
+
+        if (!$start || !$end) {
+            return false;
+        }
+        
+        if (!isset($matches[3])) {
+            $matches = $this->_matchAlternative($blockname);
+        }
 
         if (isset($matches[3])) {
             $this->tempDocumentMainPart = str_replace(
