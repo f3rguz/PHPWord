@@ -322,16 +322,29 @@ class TemplateProcessor
     public function cloneBlock($blockname, $clones = 1, $replace = true)
     {
         $xmlBlock = null;
+
+        $start = strpos($this->tempDocumentMainPart, '${'.$blockname.'}');
+        $end = strpos($this->tempDocumentMainPart, '${/'.$blockname.'}');
+
+        if (!$start || !$end) {
+            return $xmlBlock;
+        }
+
         preg_match(
-            '/(<\?xml.*)(<w:p.*>\${' . $blockname . '}<\/w:.*?p>)(.*)(<w:p.*\${\/' . $blockname . '}<\/w:.*?p>)/is',
-            $this->tempDocumentMainPart,
+            '/(<w:p.*>\${' . $blockname . '}<\/w:.*?p>)(.*)(<w:p.*\${\/' . $blockname . '}<\/w:.*?p>)/is',
+            (string)$this->tempDocumentMainPart,
             $matches
         );
+
+        if (!isset($matches[3])) {
+            $matches = $this->_matchAlternative($blockname);
+        }
 
         if (isset($matches[3])) {
             $xmlBlock = $matches[3];
             $cloned = array();
             for ($i = 1; $i <= $clones; $i++) {
+                $xmlBlock = preg_replace('/\$\{(.*?)\}/', '\${\\1#' . $i . '}', $matches[3]);
                 $cloned[] = $xmlBlock;
             }
 
@@ -345,6 +358,26 @@ class TemplateProcessor
         }
 
         return $xmlBlock;
+    }
+
+    protected function _matchAlternative($blockname) {
+        $string1 = explode('${'.$blockname.'}',$this->tempDocumentMainPart);
+        $string1_1 = explode('<w:p',$string1[0]);
+
+        $string2 = explode('${/'.$blockname.'}',$string1[1]);
+        $string2_1 = explode('<w:p',$string2[0]);
+        $string2_2 = explode('</w:p>',$string2[1]);
+
+        $string3 = explode('</w:p>',$string2[0],2);
+        $string4 = explode('</w:p>',$string3[1],2);
+
+        $matches = array(
+            2 => '<w:p'.end($string1_1).'${'.$blockname.'}'.$string3[0].'</w:p>',
+            3 => $string4[0].'</w:p>',
+            4 => '<w:p'.end($string2_1).'${/'.$blockname.'}'.$string2_2[0].'</w:p>'
+        );
+
+        return $matches;
     }
 
     /**
