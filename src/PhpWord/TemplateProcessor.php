@@ -369,11 +369,14 @@ class TemplateProcessor
         $string2_2 = explode('</w:p>',$string2[1]);
 
         $string3 = explode('</w:p>',$string2[0],2);
-        $string4 = explode('</w:p>',$string3[1],2);
+
+        // Obtener contenido a duplicar
+        $string4 = explode('<w:p'.end($string1_1).'${'.$blockname.'}'.$string3[0].'</w:p>',$this->tempDocumentMainPart,2);
+        $string4_1 = explode('<w:p'.end($string2_1).'${/'.$blockname.'}'.$string2_2[0].'</w:p>',$string4[1]);
 
         $matches = array(
             2 => '<w:p'.end($string1_1).'${'.$blockname.'}'.$string3[0].'</w:p>',
-            3 => $string4[0].'</w:p>',
+            3 => $string4_1[0],
             4 => '<w:p'.end($string2_1).'${/'.$blockname.'}'.$string2_2[0].'</w:p>'
         );
 
