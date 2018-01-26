@@ -268,7 +268,7 @@ class TemplateProcessor
 
         $tagPos = strpos($this->tempDocumentMainPart, $search);
         if (!$tagPos) {
-            throw new Exception('Can not clone row, template variable not found or variable contains markup.');
+            throw new Exception('Can not clone row, template variable not found or variable contains markup.'.$search);
         }
 
         $rowStart = $this->findRowStart($tagPos);
@@ -290,7 +290,6 @@ class TemplateProcessor
 
                 // If tmpXmlRow doesn't contain continue, this row is no longer part of the spanned row.
                 $tmpXmlRow = $this->getSlice($extraRowStart, $extraRowEnd);
-                
                 if (preg_match('#</w:tbl>#', $tmpXmlRow) ||
                    (!preg_match('#<w:vMerge/>#', $tmpXmlRow) &&
                     !preg_match('#<w:vMerge w:val="continue" />#', $tmpXmlRow))) {
@@ -323,25 +322,20 @@ class TemplateProcessor
     public function cloneBlock($blockname, $clones = 1, $replace = true)
     {
         $xmlBlock = null;
-        preg_match(
-            '/(<\?xml.*)(<w:p.*>\${' . $blockname . '}<\/w:.*?p>)(.*)(<w:p.*\${\/' . $blockname . '}<\/w:.*?p>)/is',
-            $this->tempDocumentMainPart,
-            $matches
-        );
 
-        if (isset($matches[3])) {
-            $xmlBlock = $matches[3];
+        $matches = $this->findBlock($blockname);
+
+        if (isset($matches[1])) {
+            $xmlBlock = $matches[1];
             $cloned = array();
             for ($i = 1; $i <= $clones; $i++) {
-                if ($clones > 1 ) {
-                    $xmlBlock = preg_replace('/\$\{(.*?)\}/', '\${\\1#' . $i . '}', $matches[3]);
-                }
+                $xmlBlock = preg_replace('/\$\{(.*?)\}/', '\${\\1#' . $i . '}', $matches[1]);
                 $cloned[] = $xmlBlock;
             }
 
             if ($replace) {
                 $this->tempDocumentMainPart = str_replace(
-                    $matches[2] . $matches[3] . $matches[4],
+                    $matches[0],
                     implode('', $cloned),
                     $this->tempDocumentMainPart
                 );
@@ -359,15 +353,11 @@ class TemplateProcessor
      */
     public function replaceBlock($blockname, $replacement)
     {
-        preg_match(
-            '/(<\?xml.*)(<w:p.*>\${' . $blockname . '}<\/w:.*?p>)(.*)(<w:p.*\${\/' . $blockname . '}<\/w:.*?p>)/is',
-            $this->tempDocumentMainPart,
-            $matches
-        );
+        $matches = $this->findBlock($blockname);
 
-        if (isset($matches[3])) {
+        if (isset($matches[1])) {
             $this->tempDocumentMainPart = str_replace(
-                $matches[2] . $matches[3] . $matches[4],
+                $matches[0],
                 $replacement,
                 $this->tempDocumentMainPart
             );
@@ -576,5 +566,71 @@ class TemplateProcessor
         }
 
         return substr($this->tempDocumentMainPart, $startPosition, ($endPosition - $startPosition));
+    }
+
+    protected function findBlock($blockname)
+    {
+        // Parse the XML
+        $xml = new \SimpleXMLElement($this->tempDocumentMainPart);
+
+        // Find the starting and ending tags
+        $startNode = false; $endNode = false;
+        foreach ($xml->xpath('//w:t') as $node)
+        {
+            if (strpos($node, '${'.$blockname.'}') !== false)
+            {
+                $startNode = $node;
+                continue;
+            }
+
+            if (strpos($node, '${/'.$blockname.'}') !== false)
+            {
+                $endNode = $node;
+                break;
+            }
+        }
+
+        // Make sure we found the tags
+        if ($startNode === false || $endNode === false)
+        {
+            return null;
+        }
+
+        // Find the parent <w:p> node for the start tag
+        $node = $startNode; $startNode = null;
+        while (is_null($startNode))
+        {
+            $node = $node->xpath('..')[0];
+
+            if ($node->getName() == 'p')
+            {
+                $startNode = $node;
+            }
+        }
+
+        // Find the parent <w:p> node for the end tag
+        $node = $endNode; $endNode = null;
+        while (is_null($endNode))
+        {
+            $node = $node->xpath('..')[0];
+
+            if ($node->getName() == 'p')
+            {
+                $endNode = $node;
+            }
+        }
+
+        $this->tempDocumentMainPart = $xml->asXml();
+
+        // Find the xml in between the tags
+        $xmlBlock = null;
+        preg_match
+        (
+            '/'.preg_quote($startNode->asXml(), '/').'(.*?)'.preg_quote($endNode->asXml(), '/').'/is',
+            $this->tempDocumentMainPart,
+            $matches
+        );
+
+        return $matches;
     }
 }
