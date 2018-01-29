@@ -62,6 +62,11 @@ class TemplateProcessor
      */
     protected $tempDocumentFooters = array();
 
+
+    protected $_rels;
+    protected $_types;
+    protected $_countRels;
+
     /**
      * @since 0.12.0 Throws CreateTemporaryFileException and CopyFileException instead of Exception
      *
@@ -101,6 +106,10 @@ class TemplateProcessor
             $index++;
         }
         $this->tempDocumentMainPart = $this->fixBrokenMacros($this->zipClass->getFromName($this->getMainPartName()));
+
+        $this->_rels        = $this->zipClass->getFromName('word/_rels/document.xml.rels');
+        $this->_types       = $this->zipClass->getFromName('[Content_Types].xml');
+        $this->_countRels   = substr_count($this->_rels, 'Relationship') - 1;
     }
 
     /**
@@ -268,7 +277,7 @@ class TemplateProcessor
 
         $tagPos = strpos($this->tempDocumentMainPart, $search);
         if (!$tagPos) {
-            throw new Exception('Can not clone row, template variable not found or variable contains markup.');
+            throw new Exception('Can not clone row, template variable not found or variable contains markup.'.$search);
         }
 
         $rowStart = $this->findRowStart($tagPos);
@@ -323,34 +332,19 @@ class TemplateProcessor
     {
         $xmlBlock = null;
 
-        $start = strpos($this->tempDocumentMainPart, '${'.$blockname.'}');
-        $end = strpos($this->tempDocumentMainPart, '${/'.$blockname.'}');
+        $matches = $this->findBlock($blockname);
 
-        if (!$start || !$end) {
-            return $xmlBlock;
-        }
-
-        preg_match(
-            '/(<w:p.*>\${' . $blockname . '}<\/w:.*?p>)(.*)(<w:p.*\${\/' . $blockname . '}<\/w:.*?p>)/is',
-            (string)$this->tempDocumentMainPart,
-            $matches
-        );
-
-        if (!isset($matches[3])) {
-            $matches = $this->_matchAlternative($blockname);
-        }
-
-        if (isset($matches[3])) {
-            $xmlBlock = $matches[3];
+        if (isset($matches[1])) {
+            $xmlBlock = $matches[1];
             $cloned = array();
             for ($i = 1; $i <= $clones; $i++) {
-                $xmlBlock = preg_replace('/\$\{(.*?)\}/', '\${\\1#' . $i . '}', $matches[3]);
+                $xmlBlock = preg_replace('/\$\{(.*?)\}/', '\${\\1#' . $i . '}', $matches[1]);
                 $cloned[] = $xmlBlock;
             }
 
             if ($replace) {
                 $this->tempDocumentMainPart = str_replace(
-                    $matches[2] . $matches[3] . $matches[4],
+                    $matches[0],
                     implode('', $cloned),
                     $this->tempDocumentMainPart
                 );
@@ -358,29 +352,6 @@ class TemplateProcessor
         }
 
         return $xmlBlock;
-    }
-
-    protected function _matchAlternative($blockname) {
-        $string1 = explode('${'.$blockname.'}',$this->tempDocumentMainPart);
-        $string1_1 = explode('<w:p ',$string1[0]);
-
-        $string2 = explode('${/'.$blockname.'}',$string1[1]);
-        $string2_1 = explode('<w:p ',$string2[0]);
-        $string2_2 = explode('</w:p>',$string2[1]);
-
-        $string3 = explode('</w:p>',$string2[0],2);
-
-        // Obtener contenido a duplicar
-        $string4 = explode('<w:p '.end($string1_1).'${'.$blockname.'}'.$string3[0].'</w:p>',$this->tempDocumentMainPart,2);
-        $string4_1 = explode('<w:p '.end($string2_1).'${/'.$blockname.'}'.$string2_2[0].'</w:p>',$string4[1]);
-
-        $matches = array(
-            2 => '<w:p '.end($string1_1).'${'.$blockname.'}'.$string3[0].'</w:p>',
-            3 => $string4_1[0],
-            4 => '<w:p '.end($string2_1).'${/'.$blockname.'}'.$string2_2[0].'</w:p>'
-        );
-
-        return $matches;
     }
 
     /**
@@ -391,26 +362,11 @@ class TemplateProcessor
      */
     public function replaceBlock($blockname, $replacement)
     {
-        preg_match(
-            '/(<\?xml.*)(<w:p.*>\${' . $blockname . '}<\/w:.*?p>)(.*)(<w:p.*\${\/' . $blockname . '}<\/w:.*?p>)/is',
-            $this->tempDocumentMainPart,
-            $matches
-        );
-        
-        $start = strpos($this->tempDocumentMainPart, '${'.$blockname.'}');
-        $end = strpos($this->tempDocumentMainPart, '${/'.$blockname.'}');
+        $matches = $this->findBlock($blockname);
 
-        if (!$start || !$end) {
-            return false;
-        }
-        
-        if (!isset($matches[3])) {
-            $matches = $this->_matchAlternative($blockname);
-        }
-
-        if (isset($matches[3])) {
+        if (isset($matches[1])) {
             $this->tempDocumentMainPart = str_replace(
-                $matches[2] . $matches[3] . $matches[4],
+                $matches[0],
                 $replacement,
                 $this->tempDocumentMainPart
             );
@@ -441,6 +397,14 @@ class TemplateProcessor
         }
 
         $this->zipClass->addFromString($this->getMainPartName(), $this->tempDocumentMainPart);
+
+        if($this->_rels != "") {
+            $this->zipClass->addFromString('word/_rels/document.xml.rels', $this->_rels);
+        }
+
+        if($this->_types != "") {
+            $this->zipClass->addFromString('[Content_Types].xml', $this->_types);
+        }
 
         foreach ($this->tempDocumentFooters as $index => $xml) {
             $this->zipClass->addFromString($this->getFooterName($index), $xml);
@@ -619,5 +583,113 @@ class TemplateProcessor
         }
 
         return substr($this->tempDocumentMainPart, $startPosition, ($endPosition - $startPosition));
+    }
+
+    protected function findBlock($blockname)
+    {
+        // Parse the XML
+        $xml = new \SimpleXMLElement($this->tempDocumentMainPart);
+
+        // Find the starting and ending tags
+        $startNode = false; $endNode = false;
+        foreach ($xml->xpath('//w:t') as $node)
+        {
+            if (strpos($node, '${'.$blockname.'}') !== false)
+            {
+                $startNode = $node;
+                continue;
+            }
+
+            if (strpos($node, '${/'.$blockname.'}') !== false)
+            {
+                $endNode = $node;
+                break;
+            }
+        }
+
+        // Make sure we found the tags
+        if ($startNode === false || $endNode === false)
+        {
+            return null;
+        }
+
+        // Find the parent <w:p> node for the start tag
+        $node = $startNode; $startNode = null;
+        while (is_null($startNode))
+        {
+            $node = $node->xpath('..')[0];
+
+            if ($node->getName() == 'p')
+            {
+                $startNode = $node;
+            }
+        }
+
+        // Find the parent <w:p> node for the end tag
+        $node = $endNode; $endNode = null;
+        while (is_null($endNode))
+        {
+            $node = $node->xpath('..')[0];
+
+            if ($node->getName() == 'p')
+            {
+                $endNode = $node;
+            }
+        }
+
+        $this->tempDocumentMainPart = $xml->asXml();
+
+        // Find the xml in between the tags
+        $xmlBlock = null;
+        preg_match
+        (
+            '/'.preg_quote($startNode->asXml(), '/').'(.*?)'.preg_quote($endNode->asXml(), '/').'/is',
+            $this->tempDocumentMainPart,
+            $matches
+        );
+
+        return $matches;
+    }
+
+
+    // REEMPLAZAR STRING POR IMÁGENES FUNCIONES OPCIONALES
+    public function replaceStrToImg( $strKey, $imgPath )
+    {
+        $strKey = '${'.$strKey.'}';
+
+        $imgData = getimagesize($imgPath);
+        $imgWidth = (int)($imgData[0]*2/3);
+        $imgHeight = (int)($imgData[1]*2/3);
+
+        $relationTmpl = '<Relationship Id="RID" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/IMG"/>';
+        $imgTmpl = '<w:pict><v:shape type="#_x0000_t75" style="width:'.$imgWidth.'px;height:'.$imgHeight.'px"><v:imagedata r:id="RID" o:title=""/></v:shape></w:pict>';
+        $typeTmpl = ' <Override PartName="/word/media/IMG" ContentType="image/EXT"/>';
+        $toAdd = $toAddImg = $toAddType = '';
+        $aSearch = array('RID', 'IMG');
+        $aSearchType = array('IMG', 'EXT');
+
+        $imgArray = explode('.', $imgPath);
+
+        $imgExt = array_pop( $imgArray );
+
+        if( in_array($imgExt, array('jpg', 'JPG') ) ) {
+            $imgExt = 'jpeg';
+        }
+        $imgName = 'img' . $this->_countRels . '.' . $imgExt;
+        $rid = 'rId' . $this->_countRels++;
+
+        $this->zipClass->addFile($imgPath, 'word/media/' . $imgName);
+
+        $toAddImg .= str_replace('RID', $rid, $imgTmpl) ;
+
+        $aReplace = array($imgName, $imgExt);
+        $toAddType .= str_replace($aSearchType, $aReplace, $typeTmpl) ;
+
+        $aReplace = array($rid, $imgName);
+        $toAdd .= str_replace($aSearch, $aReplace, $relationTmpl);
+
+        $this->tempDocumentMainPart = str_replace('<w:t>' . $strKey . '</w:t>', $toAddImg, $this->tempDocumentMainPart);
+        $this->_types = str_replace('</Types>', $toAddType, $this->_types) . '</Types>';
+        $this->_rels = str_replace('</Relationships>', $toAdd, $this->_rels) . '</Relationships>';
     }
 }
