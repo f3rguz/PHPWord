@@ -651,44 +651,53 @@ class TemplateProcessor
         return $matches;
     }
 
-
     // REEMPLAZAR STRING POR IMÁGENES FUNCIONES OPCIONALES
-    public function replaceStrToImg( $strKey, $imgPath )
+    public function replaceImgs( $search, $replace )
     {
-        $strKey = '${'.$strKey.'}';
-
-        $imgData = getimagesize($imgPath);
-        $imgWidth = (int)($imgData[0]*2/3);
-        $imgHeight = (int)($imgData[1]*2/3);
+        if (!array($search)) {
+            $search = array($search);
+        }
 
         $relationTmpl = '<Relationship Id="RID" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/IMG"/>';
-        $imgTmpl = '<w:pict><v:shape type="#_x0000_t75" style="width:'.$imgWidth.'px;height:'.$imgHeight.'px"><v:imagedata r:id="RID" o:title=""/></v:shape></w:pict>';
         $typeTmpl = ' <Override PartName="/word/media/IMG" ContentType="image/EXT"/>';
-        $toAdd = $toAddImg = $toAddType = '';
         $aSearch = array('RID', 'IMG');
         $aSearchType = array('IMG', 'EXT');
+        $toAddImgs = array();
+        $toAdd = $toAddType = '';
 
-        $imgArray = explode('.', $imgPath);
-
-        $imgExt = array_pop( $imgArray );
-
-        if( in_array($imgExt, array('jpg', 'JPG') ) ) {
-            $imgExt = 'jpeg';
+        foreach ($search as &$item) {
+            $item = '<w:t>' . self::ensureMacroCompleted($item) . '</w:t>';
         }
-        $imgName = 'img' . $this->_countRels . '.' . $imgExt;
-        $rid = 'rId' . $this->_countRels++;
 
-        $this->zipClass->addFile($imgPath, 'word/media/' . $imgName);
+        foreach ($replace as $imgPath) {
+            $imgData = getimagesize($imgPath);
+            $imgWidth = (int)($imgData[0]*2/3);
+            $imgHeight = (int)($imgData[1]*2/3);
 
-        $toAddImg .= str_replace('RID', $rid, $imgTmpl) ;
+            $imgTmpl = '<w:pict><v:shape type="#_x0000_t75" style="width:'.$imgWidth.'px;height:'.$imgHeight.'px"><v:imagedata r:id="RID" o:title=""/></v:shape></w:pict>';
 
-        $aReplace = array($imgName, $imgExt);
-        $toAddType .= str_replace($aSearchType, $aReplace, $typeTmpl) ;
+            $imgArray = explode('.', $imgPath);
 
-        $aReplace = array($rid, $imgName);
-        $toAdd .= str_replace($aSearch, $aReplace, $relationTmpl);
+            $imgExt = array_pop( $imgArray );
 
-        $this->tempDocumentMainPart = str_replace('<w:t>' . $strKey . '</w:t>', $toAddImg, $this->tempDocumentMainPart);
+            if( in_array($imgExt, array('jpg', 'JPG') ) ) {
+                $imgExt = 'jpeg';
+            }
+            $imgName = 'img' . $this->_countRels . '.' . $imgExt;
+            $rid = 'rId' . $this->_countRels++;
+
+            $this->zipClass->addFile($imgPath, 'word/media/' . $imgName);
+
+            $toAddImgs[] = str_replace('RID', $rid, $imgTmpl) ;
+
+            $aReplace = array($imgName, $imgExt);
+            $toAddType .= str_replace($aSearchType, $aReplace, $typeTmpl) ;
+
+            $aReplace = array($rid, $imgName);
+            $toAdd .= str_replace($aSearch, $aReplace, $relationTmpl);
+        }
+
+        $this->tempDocumentMainPart = str_replace($search, $toAddImgs, $this->tempDocumentMainPart);
         $this->_types = str_replace('</Types>', $toAddType, $this->_types) . '</Types>';
         $this->_rels = str_replace('</Relationships>', $toAdd, $this->_rels) . '</Relationships>';
     }
