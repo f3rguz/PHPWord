@@ -67,6 +67,10 @@ class TemplateProcessor
     protected $_types;
     protected $_countRels;
 
+    protected $_lineBreak = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+
+//    protected $_lineBreak = '<w:br w:type="page"/>';
+
     /**
      * @since 0.12.0 Throws CreateTemporaryFileException and CopyFileException instead of Exception
      *
@@ -339,6 +343,9 @@ class TemplateProcessor
             $cloned = array();
             for ($i = 1; $i <= $clones; $i++) {
                 $xmlBlock = preg_replace('/\$\{(.*?)\}/', '\${\\1#' . $i . '}', $matches[1]);
+
+                //DELETE SALTOS DE LINEA
+                $xmlBlock = str_replace('<w:r>'.$this->_lineBreak.'</w:r>','',$xmlBlock);
                 $cloned[] = $xmlBlock;
             }
 
@@ -592,47 +599,39 @@ class TemplateProcessor
 
         // Find the starting and ending tags
         $startNode = false; $endNode = false;
-        foreach ($xml->xpath('//w:t') as $node)
-        {
-            if (strpos($node, '${'.$blockname.'}') !== false)
-            {
+        foreach ($xml->xpath('//w:t') as $node) {
+            if (strpos($node, '${'.$blockname.'}') !== false) {
                 $startNode = $node;
                 continue;
             }
 
-            if (strpos($node, '${/'.$blockname.'}') !== false)
-            {
+            if (strpos($node, '${/'.$blockname.'}') !== false) {
                 $endNode = $node;
                 break;
             }
         }
 
         // Make sure we found the tags
-        if ($startNode === false || $endNode === false)
-        {
+        if ($startNode === false || $endNode === false) {
             return null;
         }
 
         // Find the parent <w:p> node for the start tag
         $node = $startNode; $startNode = null;
-        while (is_null($startNode))
-        {
+        while (is_null($startNode)) {
             $node = $node->xpath('..')[0];
 
-            if ($node->getName() == 'p')
-            {
+            if ($node->getName() == 'p') {
                 $startNode = $node;
             }
         }
 
         // Find the parent <w:p> node for the end tag
         $node = $endNode; $endNode = null;
-        while (is_null($endNode))
-        {
+        while (is_null($endNode)) {
             $node = $node->xpath('..')[0];
 
-            if ($node->getName() == 'p')
-            {
+            if ($node->getName() == 'p') {
                 $endNode = $node;
             }
         }
@@ -641,8 +640,7 @@ class TemplateProcessor
 
         // Find the xml in between the tags
         $xmlBlock = null;
-        preg_match
-        (
+        preg_match(
             '/'.preg_quote($startNode->asXml(), '/').'(.*?)'.preg_quote($endNode->asXml(), '/').'/is',
             $this->tempDocumentMainPart,
             $matches
@@ -700,5 +698,79 @@ class TemplateProcessor
         $this->tempDocumentMainPart = str_replace($search, $toAddImgs, $this->tempDocumentMainPart);
         $this->_types = str_replace('</Types>', $toAddType, $this->_types) . '</Types>';
         $this->_rels = str_replace('</Relationships>', $toAdd, $this->_rels) . '</Relationships>';
+    }
+
+    public function insertLinesBreaks($search) {
+        if (!array($search)) {
+            $search = array($search);
+        }
+
+        $replaces = array();
+
+        // Parse the XML
+        $xml = new \SimpleXMLElement($this->tempDocumentMainPart);
+
+        foreach ($search as $blockname) {
+            $lines = $this->_returnLineDoc($xml,$blockname);
+
+            foreach ($lines as $line) {
+                $replaces[] = $line;
+            }
+        }
+
+        $this->tempDocumentMainPart = str_replace($replaces, $this->_lineBreak, $this->tempDocumentMainPart);
+
+        return true;
+    }
+
+    public function deleteWhiteLines($search) {
+        if (!array($search)) {
+            $search = array($search);
+        }
+
+        $replaces = array();
+
+        // Parse the XML
+        $xml = new \SimpleXMLElement($this->tempDocumentMainPart);
+
+        foreach ($search as $blockname) {
+            $lines = $this->_returnLineDoc($xml,$blockname);
+
+            foreach ($lines as $line) {
+                $replaces[] = $line;
+            }
+        }
+
+        $this->tempDocumentMainPart = str_replace($replaces, '', $this->tempDocumentMainPart);
+    }
+
+    protected function _returnLineDoc($xml,$blockname) {
+        // Find the starting and ending tags
+        $nodes = array();
+        $parts = array();
+
+        foreach ($xml->xpath('//w:t') as $node) {
+            if (strpos($node, '${'.$blockname.'}') !== false) {
+                $nodes[] = $node;
+            }
+        }
+
+        // Make sure we found the tags
+        if (count($nodes)) {
+            foreach($nodes as $startNode) {
+                $node = $startNode;
+                $startNode = null;
+                while (is_null($startNode)) {
+                    $node = $node->xpath('..')[0];
+                    if ($node->getName() == 'p') {
+                        $startNode = $node;
+                    }
+                }
+
+                $parts[] = $startNode->asXml();
+            }
+        }
+
+        return $parts;
     }
 }
