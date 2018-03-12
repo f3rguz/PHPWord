@@ -69,8 +69,6 @@ class TemplateProcessor
 
     protected $_lineBreak = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
 
-//    protected $_lineBreak = '<w:br w:type="page"/>';
-
     /**
      * @since 0.12.0 Throws CreateTemporaryFileException and CopyFileException instead of Exception
      *
@@ -343,9 +341,6 @@ class TemplateProcessor
             $cloned = array();
             for ($i = 1; $i <= $clones; $i++) {
                 $xmlBlock = preg_replace('/\$\{(.*?)\}/', '\${\\1#' . $i . '}', $matches[1]);
-
-                //DELETE SALTOS DE LINEA
-                $xmlBlock = str_replace('<w:r>'.$this->_lineBreak.'</w:r>','',$xmlBlock);
                 $cloned[] = $xmlBlock;
             }
 
@@ -649,6 +644,33 @@ class TemplateProcessor
         return $matches;
     }
 
+    public function deleleBreakLines($blockname)
+    {
+
+        // Parse the XML
+        $xml = new \SimpleXMLElement($this->tempDocumentMainPart);
+
+
+        foreach ($xml->xpath('//w:t') as $node) {
+            if (strpos($node, '${'.$blockname.'}') !== false) {
+                $startNode = $node;
+                continue;
+            }
+        }
+
+        $matches = $this->findBlock($blockname);
+
+        $breakLines = array(
+                            '<w:r><w:br w:type="page"/></w:r>',
+                            '<w:r w:rsidRPr="007623E7"><w:lastRenderedPageBreak/><w:br w:type="page"/></w:r>'
+                            );
+
+        //DELETE SALTOS DE LINEA
+        $xmlBlock = str_replace($breakLines,'',$matches[0]);
+
+        $this->tempDocumentMainPart = str_replace($matches[0],$xmlBlock,$this->tempDocumentMainPart);
+    }
+
     // REEMPLAZAR STRING POR IMÁGENES FUNCIONES OPCIONALES
     public function replaceImgs( $search, $replace )
     {
@@ -721,15 +743,20 @@ class TemplateProcessor
         $this->tempDocumentMainPart = str_replace($replaces, $this->_lineBreak, $this->tempDocumentMainPart);
 
         $stringsExcept = array(
-            $this->_lineBreak.$this->_lineBreak,
-            '<w:p><w:r><w:br w:type="page"/></w:r></w:p><w:p w14:paraId="177429B1" w14:textId="77777777" w:rsidR="00434B1F" w:rsidRDefault="00434B1F"><w:pPr><w:spacing w:after="0"/><w:ind w:firstLine="0"/><w:jc w:val="left"/><w:rPr><w:rFonts w:ascii="Open Sans Bold" w:hAnsi="Open Sans Bold"/><w:caps/><w:color w:val="00686E" w:themeColor="accent1"/><w:sz w:val="32"/><w:szCs w:val="32"/><w:lang w:val="es-ES_tradnl"/></w:rPr></w:pPr><w:r><w:br w:type="page"/></w:r></w:p>',
-            '<w:p><w:r><w:br w:type="page"/></w:r></w:p><w:p w14:paraId="11F9D35D" w14:textId="77777777" w:rsidR="00434B1F" w:rsidRDefault="00434B1F" w:rsidP="00434B1F"/><w:p w14:paraId="473B8083" w14:textId="77777777" w:rsidR="00434B1F" w:rsidRDefault="00434B1F"><w:pPr><w:spacing w:after="0"/><w:ind w:firstLine="0"/><w:jc w:val="left"/></w:pPr><w:r><w:br w:type="page"/></w:r></w:p>',
-            '<w:p><w:r><w:br w:type="page"/></w:r></w:p><w:p w14:paraId="7747A33E" w14:textId="61E2AF56" w:rsidR="006709B3" w:rsidRDefault="006709B3" w:rsidP="006709B3"><w:pPr><w:pStyle w:val="Titular1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="0"/></w:numPr><w:spacing w:before="120" w:line="276" w:lineRule="auto"/><w:rPr><w:rFonts w:ascii="Lato Light" w:hAnsi="Lato Light"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r w:rsidRPr="00CE083D"><w:rPr><w:rFonts w:ascii="Lato Light" w:hAnsi="Lato Light"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve"> </w:t></w:r></w:p><w:p w14:paraId="506D6C41" w14:textId="2D53A349" w:rsidR="006709B3" w:rsidRDefault="006709B3" w:rsidP="006709B3"><w:pPr><w:pStyle w:val="Titular1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="0"/></w:numPr><w:spacing w:before="120" w:line="276" w:lineRule="auto"/><w:rPr><w:rFonts w:ascii="Lato Light" w:hAnsi="Lato Light"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p><w:p w14:paraId="7CABEBB3" w14:textId="64EEABFB" w:rsidR="006709B3" w:rsidRDefault="006709B3" w:rsidP="006709B3"><w:pPr><w:pStyle w:val="Titular1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="0"/></w:numPr><w:spacing w:before="120" w:line="276" w:lineRule="auto"/><w:rPr><w:rFonts w:ascii="Lato Light" w:hAnsi="Lato Light"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p><w:p w14:paraId="3348A815" w14:textId="77777777" w:rsidR="006709B3" w:rsidRPr="00CE083D" w:rsidRDefault="006709B3" w:rsidP="006709B3"><w:pPr><w:pStyle w:val="Titular1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="0"/></w:numPr><w:spacing w:before="120" w:line="276" w:lineRule="auto"/><w:rPr><w:rFonts w:ascii="Lato Light" w:hAnsi="Lato Light"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p><w:p w14:paraId="5F436D17" w14:textId="77777777" w:rsidR="006709B3" w:rsidRDefault="006709B3"><w:pPr><w:spacing w:after="0"/><w:ind w:firstLine="0"/><w:jc w:val="left"/></w:pPr></w:p><w:p w14:paraId="7F8232D2" w14:textId="77777777" w:rsidR="006709B3" w:rsidRDefault="006709B3"><w:pPr><w:spacing w:after="0"/><w:ind w:firstLine="0"/><w:jc w:val="left"/></w:pPr></w:p><w:p w14:paraId="226FF353" w14:textId="77777777" w:rsidR="006709B3" w:rsidRDefault="006709B3"><w:pPr><w:spacing w:after="0"/><w:ind w:firstLine="0"/><w:jc w:val="left"/></w:pPr></w:p><w:p w14:paraId="241EEBAF" w14:textId="5F10CC06" w:rsidR="004A4DFD" w:rsidRDefault="004A4DFD"><w:pPr><w:spacing w:after="0"/><w:ind w:firstLine="0"/><w:jc w:val="left"/></w:pPr><w:r><w:br w:type="page"/></w:r></w:p>',
-            '<w:p><w:r><w:br w:type="page"/></w:r></w:p><w:p w14:paraId="177429B1" w14:textId="04EA55BF" w:rsidR="00434B1F" w:rsidRDefault="00434B1F"><w:pPr><w:spacing w:after="0"/><w:ind w:firstLine="0"/><w:jc w:val="left"/><w:rPr><w:rFonts w:ascii="Open Sans Bold" w:hAnsi="Open Sans Bold"/><w:caps/><w:color w:val="00686E" w:themeColor="accent1"/><w:sz w:val="32"/><w:szCs w:val="32"/><w:lang w:val="es-ES_tradnl"/></w:rPr></w:pPr><w:r><w:br w:type="page"/></w:r></w:p>',
-            '<w:p><w:r><w:br w:type="page"/></w:r></w:p><w:p w14:paraId="177429B1" w14:textId="580DAA0A" w:rsidR="00434B1F" w:rsidRDefault="00434B1F"><w:pPr><w:spacing w:after="0"/><w:ind w:firstLine="0"/><w:jc w:val="left"/><w:rPr><w:rFonts w:ascii="Open Sans Bold" w:hAnsi="Open Sans Bold"/><w:caps/><w:color w:val="00686E" w:themeColor="accent1"/><w:sz w:val="32"/><w:szCs w:val="32"/><w:lang w:val="es-ES_tradnl"/></w:rPr></w:pPr><w:r><w:br w:type="page"/></w:r><w:bookmarkStart w:id="0" w:name="_GoBack"/><w:bookmarkEnd w:id="0"/></w:p><w:p><w:r><w:br w:type="page"/></w:r></w:p>',
-            '<w:p><w:r><w:br w:type="page"/></w:r></w:p><w:p w14:paraId="36B91ED5" w14:textId="35DA998C" w:rsidR="00FB5DAF" w:rsidRPr="00A01173" w:rsidRDefault="00366959" w:rsidP="00434B1F"><w:pPr><w:spacing w:after="0"/><w:ind w:firstLine="0"/><w:jc w:val="left"/><w:sectPr w:rsidR="00FB5DAF" w:rsidRPr="00A01173" w:rsidSect="00231881"><w:type w:val="continuous"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1701" w:right="1418" w:bottom="1418" w:left="1701" w:header="142" w:footer="709" w:gutter="0"/><w:cols w:space="708"/><w:docGrid w:linePitch="360"/></w:sectPr></w:pPr><w:r><w:br w:type="page"/></w:r></w:p>',
-            '<w:p><w:r><w:br w:type="page"/></w:r></w:p><w:p w14:paraId="177429B1" w14:textId="580DAA0A" w:rsidR="00434B1F" w:rsidRDefault="00434B1F"><w:pPr><w:spacing w:after="0"/><w:ind w:firstLine="0"/><w:jc w:val="left"/><w:rPr><w:rFonts w:ascii="Open Sans Bold" w:hAnsi="Open Sans Bold"/><w:caps/><w:color w:val="00686E" w:themeColor="accent1"/><w:sz w:val="32"/><w:szCs w:val="32"/><w:lang w:val="es-ES_tradnl"/></w:rPr></w:pPr><w:r><w:br w:type="page"/></w:r><w:bookmarkStart w:id="0" w:name="_GoBack"/><w:bookmarkEnd w:id="0"/></w:p>'
+            $this->_lineBreak.$this->_lineBreak
         );
+
+//        $stringsExcept = array(
+//            $this->_lineBreak.$this->_lineBreak,
+//            '<w:p><w:r><w:br w:type="page"/></w:r></w:p><w:p w14:paraId="177429B1" w14:textId="77777777" w:rsidR="00434B1F" w:rsidRDefault="00434B1F"><w:pPr><w:spacing w:after="0"/><w:ind w:firstLine="0"/><w:jc w:val="left"/><w:rPr><w:rFonts w:ascii="Open Sans Bold" w:hAnsi="Open Sans Bold"/><w:caps/><w:color w:val="00686E" w:themeColor="accent1"/><w:sz w:val="32"/><w:szCs w:val="32"/><w:lang w:val="es-ES_tradnl"/></w:rPr></w:pPr><w:r><w:br w:type="page"/></w:r></w:p>',
+//            '<w:p><w:r><w:br w:type="page"/></w:r></w:p><w:p w14:paraId="11F9D35D" w14:textId="77777777" w:rsidR="00434B1F" w:rsidRDefault="00434B1F" w:rsidP="00434B1F"/><w:p w14:paraId="473B8083" w14:textId="77777777" w:rsidR="00434B1F" w:rsidRDefault="00434B1F"><w:pPr><w:spacing w:after="0"/><w:ind w:firstLine="0"/><w:jc w:val="left"/></w:pPr><w:r><w:br w:type="page"/></w:r></w:p>',
+//            '<w:p><w:r><w:br w:type="page"/></w:r></w:p><w:p w14:paraId="7747A33E" w14:textId="61E2AF56" w:rsidR="006709B3" w:rsidRDefault="006709B3" w:rsidP="006709B3"><w:pPr><w:pStyle w:val="Titular1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="0"/></w:numPr><w:spacing w:before="120" w:line="276" w:lineRule="auto"/><w:rPr><w:rFonts w:ascii="Lato Light" w:hAnsi="Lato Light"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r w:rsidRPr="00CE083D"><w:rPr><w:rFonts w:ascii="Lato Light" w:hAnsi="Lato Light"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t xml:space="preserve"> </w:t></w:r></w:p><w:p w14:paraId="506D6C41" w14:textId="2D53A349" w:rsidR="006709B3" w:rsidRDefault="006709B3" w:rsidP="006709B3"><w:pPr><w:pStyle w:val="Titular1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="0"/></w:numPr><w:spacing w:before="120" w:line="276" w:lineRule="auto"/><w:rPr><w:rFonts w:ascii="Lato Light" w:hAnsi="Lato Light"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p><w:p w14:paraId="7CABEBB3" w14:textId="64EEABFB" w:rsidR="006709B3" w:rsidRDefault="006709B3" w:rsidP="006709B3"><w:pPr><w:pStyle w:val="Titular1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="0"/></w:numPr><w:spacing w:before="120" w:line="276" w:lineRule="auto"/><w:rPr><w:rFonts w:ascii="Lato Light" w:hAnsi="Lato Light"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p><w:p w14:paraId="3348A815" w14:textId="77777777" w:rsidR="006709B3" w:rsidRPr="00CE083D" w:rsidRDefault="006709B3" w:rsidP="006709B3"><w:pPr><w:pStyle w:val="Titular1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="0"/></w:numPr><w:spacing w:before="120" w:line="276" w:lineRule="auto"/><w:rPr><w:rFonts w:ascii="Lato Light" w:hAnsi="Lato Light"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr></w:p><w:p w14:paraId="5F436D17" w14:textId="77777777" w:rsidR="006709B3" w:rsidRDefault="006709B3"><w:pPr><w:spacing w:after="0"/><w:ind w:firstLine="0"/><w:jc w:val="left"/></w:pPr></w:p><w:p w14:paraId="7F8232D2" w14:textId="77777777" w:rsidR="006709B3" w:rsidRDefault="006709B3"><w:pPr><w:spacing w:after="0"/><w:ind w:firstLine="0"/><w:jc w:val="left"/></w:pPr></w:p><w:p w14:paraId="226FF353" w14:textId="77777777" w:rsidR="006709B3" w:rsidRDefault="006709B3"><w:pPr><w:spacing w:after="0"/><w:ind w:firstLine="0"/><w:jc w:val="left"/></w:pPr></w:p><w:p w14:paraId="241EEBAF" w14:textId="5F10CC06" w:rsidR="004A4DFD" w:rsidRDefault="004A4DFD"><w:pPr><w:spacing w:after="0"/><w:ind w:firstLine="0"/><w:jc w:val="left"/></w:pPr><w:r><w:br w:type="page"/></w:r></w:p>',
+//            '<w:p><w:r><w:br w:type="page"/></w:r></w:p><w:p w14:paraId="177429B1" w14:textId="04EA55BF" w:rsidR="00434B1F" w:rsidRDefault="00434B1F"><w:pPr><w:spacing w:after="0"/><w:ind w:firstLine="0"/><w:jc w:val="left"/><w:rPr><w:rFonts w:ascii="Open Sans Bold" w:hAnsi="Open Sans Bold"/><w:caps/><w:color w:val="00686E" w:themeColor="accent1"/><w:sz w:val="32"/><w:szCs w:val="32"/><w:lang w:val="es-ES_tradnl"/></w:rPr></w:pPr><w:r><w:br w:type="page"/></w:r></w:p>',
+//            '<w:p><w:r><w:br w:type="page"/></w:r></w:p><w:p w14:paraId="177429B1" w14:textId="580DAA0A" w:rsidR="00434B1F" w:rsidRDefault="00434B1F"><w:pPr><w:spacing w:after="0"/><w:ind w:firstLine="0"/><w:jc w:val="left"/><w:rPr><w:rFonts w:ascii="Open Sans Bold" w:hAnsi="Open Sans Bold"/><w:caps/><w:color w:val="00686E" w:themeColor="accent1"/><w:sz w:val="32"/><w:szCs w:val="32"/><w:lang w:val="es-ES_tradnl"/></w:rPr></w:pPr><w:r><w:br w:type="page"/></w:r><w:bookmarkStart w:id="0" w:name="_GoBack"/><w:bookmarkEnd w:id="0"/></w:p><w:p><w:r><w:br w:type="page"/></w:r></w:p>',
+//            '<w:p><w:r><w:br w:type="page"/></w:r></w:p><w:p w14:paraId="36B91ED5" w14:textId="35DA998C" w:rsidR="00FB5DAF" w:rsidRPr="00A01173" w:rsidRDefault="00366959" w:rsidP="00434B1F"><w:pPr><w:spacing w:after="0"/><w:ind w:firstLine="0"/><w:jc w:val="left"/><w:sectPr w:rsidR="00FB5DAF" w:rsidRPr="00A01173" w:rsidSect="00231881"><w:type w:val="continuous"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1701" w:right="1418" w:bottom="1418" w:left="1701" w:header="142" w:footer="709" w:gutter="0"/><w:cols w:space="708"/><w:docGrid w:linePitch="360"/></w:sectPr></w:pPr><w:r><w:br w:type="page"/></w:r></w:p>',
+//            '<w:p><w:r><w:br w:type="page"/></w:r></w:p><w:p w14:paraId="177429B1" w14:textId="580DAA0A" w:rsidR="00434B1F" w:rsidRDefault="00434B1F"><w:pPr><w:spacing w:after="0"/><w:ind w:firstLine="0"/><w:jc w:val="left"/><w:rPr><w:rFonts w:ascii="Open Sans Bold" w:hAnsi="Open Sans Bold"/><w:caps/><w:color w:val="00686E" w:themeColor="accent1"/><w:sz w:val="32"/><w:szCs w:val="32"/><w:lang w:val="es-ES_tradnl"/></w:rPr></w:pPr><w:r><w:br w:type="page"/></w:r><w:bookmarkStart w:id="0" w:name="_GoBack"/><w:bookmarkEnd w:id="0"/></w:p>',
+//            '<w:p><w:r><w:br w:type="page"/></w:r></w:p><w:p w14:paraId="177429B1" w14:textId="539E592D" w:rsidR="00434B1F" w:rsidRDefault="00434B1F"><w:pPr><w:spacing w:after="0"/><w:ind w:firstLine="0"/><w:jc w:val="left"/><w:rPr><w:rFonts w:ascii="Open Sans Bold" w:hAnsi="Open Sans Bold"/><w:caps/><w:color w:val="00686E" w:themeColor="accent1"/><w:sz w:val="32"/><w:szCs w:val="32"/><w:lang w:val="es-ES_tradnl"/></w:rPr></w:pPr><w:r><w:br w:type="page"/></w:r><w:bookmarkStart w:id="0" w:name="_GoBack"/><w:bookmarkEnd w:id="0"/></w:p>'
+//        );
 
         $this->tempDocumentMainPart = str_replace($stringsExcept, $this->_lineBreak, $this->tempDocumentMainPart);
 
